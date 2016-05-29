@@ -1,140 +1,143 @@
-# SSD: Single Shot MultiBox Detector
+## Data preparation
+Data is formatted with PASCAL_VOC format
+Data should be put in $HOME/data
+Structure:
 
-By [Wei Liu](http://www.cs.unc.edu/~wliu/), [Dragomir Anguelov](http://research.google.com/pubs/DragomirAnguelov.html), [Dumitru Erhan](http://research.google.com/pubs/DumitruErhan.html), [Christian Szegedy](http://research.google.com/pubs/ChristianSzegedy.html), [Scott Reed](http://www-personal.umich.edu/~reedscot/), Cheng-Yang Fu, [Alexander C. Berg](http://acberg.com).
+```
+$HOME/data/VOCdevkit/VOC_custom
+	├── Annotations  #annotation PASC_VOC format, please see IV to convert form MIT_CSAIL format
+	├── ImageSets
+	└── Main
+		├── test.txt
+		└── trainval.txt
+	└──  JPEGImages
+```
 
-### Introduction
+Test.txt, and train.txt is files to list images without extension.
+```
+can_coffer_bing0491
+can_coffer_bing1056
+can_coffer_bing0007
+can_coffer_bing0630
+...
+```
+- Create datasets file: Edit some file in $PROJECT/data/VOC_custom
 
-SSD is an unified framework for object detection with a single network. You can use the code to train/evaluate a network for object detection task. For more details, please refer to our [arXiv paper](http://arxiv.org/abs/1512.02325).
+```
+.
+├── create_data.sh
+├── create_list.sh
+└── labelmap_voc.prototxt
+```
 
-<p align="center">
-<img src="http://www.cs.unc.edu/~wliu/papers/ssd.png" alt="SSD Framework" width="600px">
-</p>
+- We define class - label mapping in labelmap_voc.prototxt, data path in create_list.sh and create_data.sh
+- Example labelmap_voc.prototxt:
 
-<center>
+```
+item {
+  name: "none_of_the_above"
+  label: 0
+  display_name: "background"
+}
+item {
+  name: "can"
+  label: 1
+  display_name: "cancoffe"
+}
+```
 
-| System | VOC2007 test *mAP* | **FPS** (Titan X) | Number of Boxes |
-|:-------|:-----:|:-------:|:-------:|
-| [Faster R-CNN (VGG16)](https://github.com/ShaoqingRen/faster_rcnn) | 73.2 | 7 | 300 |
-| [Faster R-CNN (ZF)](https://github.com/ShaoqingRen/faster_rcnn) | 62.1 | 17 | 300 |
-| [YOLO](http://pjreddie.com/darknet/yolo/) | 63.4 | 45 | 98 |
-| [Fast YOLO](http://pjreddie.com/darknet/yolo/) | 52.7 | 155 | 98 |
-| SSD300 (VGG16) | 72.1 | 58 | 7308 |
-| SSD500 (VGG16) | **75.1** | 23 | 20097 |
+- create_list.sh: (edit 13th line to your dataset name)
 
-</center>
+```	
+for name in VOC_custom
 
-### Citing SSD
+```
 
-Please cite SSD in your publications if it helps your research:
+- Create_data.sh: (edit 8th line to you dataset name)
 
-    @article{liu15ssd,
-      Title = {{SSD}: Single Shot MultiBox Detector},
-      Author = {Liu, Wei and Anguelov, Dragomir and Erhan, Dumitru and Szegedy, Christian and Reed, Scott and Fu, Cheng-Yang and Berg, Alexander C.},
-      Journal = {arXiv preprint arXiv:1512.02325},
-      Year = {2015}
-    }
+```
+dataset_name="VOC_custom"
 
-### Contents
-1. [Installation](#installation)
-2. [Preparation](#preparation)
-3. [Train/Eval](#traineval)
-4. [Models](#models)
-4. [Contact](#contact)
+```
 
-### Installation
-1. Get the code. We will call the directory that you cloned Caffe into `$CAFFE_ROOT`
-  ```Shell
-  git clone https://github.com/weiliu89/caffe.git
-  cd caffe
-  git checkout ssd
-  ```
+Run create_list.sh and create_data.sh in order to create dataset file and lmdb database.
 
-2. Build the code. Please follow [Caffe instruction](http://caffe.berkeleyvision.org/installation.html) to install all necessary packages and build it.
-  ```Shell
-  # Modify Makefile.config according to your Caffe installation.
-  cp Makefile.config.example Makefile.config
-  make -j8
-  # Make sure to include $CAFFE_ROOT/python to your PYTHONPATH.
-  make py
-  make test -j8
-  make runtest -j8
-  # If you have multiple GPUs installed in your machine, make runtest might fail. If so, try following:
-  export CUDA_VISIBLE_DEVICES=0; make runtest -j8
-  # If you have error: "Check failed: error == cudaSuccess (10 vs. 0)  invalid device ordinal",
-  # first make sure you have the specified GPUs, or try following if you have multiple GPUs:
-  unset CUDA_VISIBLE_DEVICES
-  ```
 
-### Preparation
-1. Download [fully convolutional reduced (atrous) VGGNet](https://gist.github.com/weiliu89/2ed6e13bfd5b57cf81d6). By default, we assume the model is stored in `$CAFFE_ROOT/models/VGGNet/`
+## Training
 
-2. Download VOC2007 and VOC2012 dataset. By default, we assume the data is stored in `$HOME/data/`
-  ```Shell
-  # Download the data.
-  cd $HOME/data
-  wget http://host.robots.ox.ac.uk/pascal/VOC/voc2012/VOCtrainval_11-May-2012.tar
-  wget http://host.robots.ox.ac.uk/pascal/VOC/voc2007/VOCtrainval_06-Nov-2007.tar
-  wget http://host.robots.ox.ac.uk/pascal/VOC/voc2007/VOCtest_06-Nov-2007.tar
-  # Extract the data.
-  tar -xvf VOCtrainval_11-May-2012.tar
-  tar -xvf VOCtrainval_06-Nov-2007.tar
-  tar -xvf VOCtest_06-Nov-2007.tar
-  ```
+- Edit examples/ssd/ssd_pascal.py
+- Some importance line we need to change
 
-3. Create the LMDB file.
-  ```Shell
-  cd $CAFFE_ROOT
-  # Create the trainval.txt, test.txt, and test_name_size.txt in data/VOC0712/
-  ./data/VOC0712/create_list.sh
-  # You can modify the parameters in create_data.sh if needed.
-  # It will create lmdb files for trainval and test with encoded original image:
-  #   - $HOME/data/VOCdevkit/VOC0712/lmdb/VOC0712_trainval_lmdb
-  #   - $HOME/data/VOCdevkit/VOC0712/lmdb/VOC0712_test_lmdb
-  # and make soft links at examples/VOC0712/
-  ./data/VOC0712/create_data.sh
-  ```
+```
+# The database file for training data. Created by data/VOC10/create_data.sh
+train_data = "examples/VOC10/VOC10_trainval_lmdb"
+# The database file for testing data. Created by data/VOC10/create_data.sh
+test_data = "examples/VOC10/VOC10_test_lmdb"
+# Specify the batch sampler.
+resize_width = 300
+resize_height = 300
 
-### Train/Eval
-1. Train your model and evaluate the model on the fly.
-  ```Shell
-  # It will create model definition files and save snapshot models in:
-  #   - $CAFFE_ROOT/models/VGGNet/VOC0712/SSD_300x300/
-  # and job file, log file, and the python script in:
-  #   - $CAFFE_ROOT/jobs/VGGNet/VOC0712/SSD_300x300/
-  # and save temporary evaluation results in:
-  #   - $HOME/data/VOCdevkit/results/VOC2007/SSD_300x300/
-  # It should reach 72.* mAP at 60k iterations.
-  python examples/ssd/ssd_pascal.py
-  ```
-  If you don't have time to train your model, you can download a pre-trained model at [here](http://www.cs.unc.edu/~wliu/projects/SSD/models_VGGNet_VOC0712_SSD_300x300.tar.gz).
+model_name = "VGG_VOC_custom_{}".format(job_name)
 
-2. Evaluate the most recent snapshot.
-  ```Shell
-  # If you would like to test a model you trained, you can do:
-  python examples/ssd/score_ssd_pascal.py
-  ```
+# Directory which stores the model .prototxt file.
+save_dir = "models/VGGNet/VOC_custom/{}".format(job_name)
+# Directory which stores the snapshot of models.
+snapshot_dir = "models/VGGNet/VOC_custom/{}".format(job_name)
+# Directory which stores the job script and log file.
+job_dir = "jobs/VGGNet/VOC_custom/{}".format(job_name)
+# Directory which stores the detection results.
+output_result_dir = "{}/data/VOCdevkit/results/VOC_custom/{}/Main".format(os.environ['HOME'], job_name)
 
-3. Test your model using a webcam. Note: press <kbd>esc</kbd> to stop.
-  ```Shell
-  # If you would like to attach a webcam to a model you trained, you can do:
-  python examples/ssd/ssd_pascal_webcam.py
-  ```
-  [Here](https://drive.google.com/file/d/0BzKzrI_SkD1_R09NcjM1eElLcWc/view) is a demo video of running a SSD500 model trained on [MSCOCO](http://mscoco.org) dataset.
+# model definition files.
+train_net_file = "{}/train.prototxt".format(save_dir)
+test_net_file = "{}/test.prototxt".format(save_dir)
+deploy_net_file = "{}/deploy.prototxt".format(save_dir)
+solver_file = "{}/solver.prototxt".format(save_dir)
+# snapshot prefix.
+snapshot_prefix = "{}/{}".format(snapshot_dir, model_name)
+# job script path.
+job_file = "{}/{}.sh".format(job_dir, model_name)
 
-4. Check out `examples/ssd_detect.ipynb` on how to detect objects using a SSD model.
+# Stores the test image names and sizes. Created by data/VOC10/create_list.sh
+name_size_file = "data/VOC_custom_cancoffe/test_name_size.txt"
+# The pretrained model. We use the Fully convolutional reduced (atrous) VGGNet.
+pretrain_model = "models/VGGNet/VGG_ILSVRC_16_layers_fc_reduced.caffemodel"
+# Stores LabelMapItem.
+label_map_file = "data/VOC_custom_cancoffe/labelmap_voc.prototxt"
+num_classes = 2
+num_test_image = 100
 
-5. To train on other dataset, please refer to data/OTHERDATASET for more details.
-We currently add support for MSCOCO.
+```
 
-### Models
-1. Models trained on VOC0712: [SSD300](http://www.cs.unc.edu/~wliu/projects/SSD/models_VGGNet_VOC0712_SSD_300x300.tar.gz), [SSD500](http://www.cs.unc.edu/~wliu/projects/SSD/models_VGGNet_VOC0712_SSD_500x500.tar.gz)
+- When we run examples/ssd/ssd_pascal.py, it will generate train.prototxt, test.prototxt, deploy.prototxt, solver.prototxt and and do training automatically.
 
-2. Models trained on MSCOCO trainval35k: [SSD300](http://www.cs.unc.edu/~wliu/projects/SSD/models_VGGNet_coco_SSD_300x300.tar.gz), [SSD500](http://www.cs.unc.edu/~wliu/projects/SSD/models_VGGNet_coco_SSD_500x500.tar.gz)
 
-3. Models trained on ILSVRC2015 trainval1: [SSD300](http://www.cs.unc.edu/~wliu/projects/SSD/models_VGGNet_ilsvrc15_SSD_300x300.tar.gz), [SSD500](http://www.cs.unc.edu/~wliu/projects/SSD/models_VGGNet_ilsvrc15_SSD_500x500.tar.gz) (46.4 mAP on val2)
+## Demo
 
-### Contact
-Please direct all comments and report all bugs to:
+- We should edit something in demo.py like below :
 
-    Wei Liu
-    wliu@cs.unc.edu
+```
+voc_labelmap_file = "data/VOC10/labelmap_voc.prototxt"
+model_def = 'models/VGGNet/VOC10/SSD_300x300/deploy.prototxt'
+model_weights = 'models/VGGNet/VOC10/SSD_300x300/model.caffemodel'
+```
+
+- Run:
+
+```
+python demo.py image_input_path
+```
+
+## Converting annotation
+
+If we have MIT_CSAIL annotation files, we should to convert to PASC_VOC format.
+Script to convert is scripts/convert_mit2pasc.py
+
+```
+python scripts/convert_mit2pasc.py list_annotation out_dir number_threads
+```
+- Example: 
+```
+python scripts/convert_mit2pasc.py VOC_custom/list_ann.txt VOC_custom/Annotations/ 5
+```
+	
