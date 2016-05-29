@@ -53,7 +53,7 @@ from caffe.proto import caffe_pb2 as cpb2
 
 # load PASCAL VOC labels
 
-voc_labelmap_file = "data/VOC10/labelmap_voc.prototxt"
+voc_labelmap_file = "data/VOC0712/labelmap_voc.prototxt"
 file = open(voc_labelmap_file, 'r')
 
 voc_labelmap = cpb2.LabelMap()
@@ -74,8 +74,8 @@ def get_labelname(labelmap, labels):
         assert found == True
     return labelnames
 
-model_def = 'models/VGGNet/VOC_custom/SSD_500x500/deploy.prototxt'
-model_weights = 'models/VGGNet/VOC_custom/SSD_500x500/VGG_VOC_custom_SSD_500x500_iter_24000.caffemodel'
+model_def = 'models/deploy.prototxt'
+model_weights = 'models/ssd_300_voc.caffemodel'
 
 net = caffe.Net(model_def,      # defines the structure of the model
                 model_weights,  # contains the trained weights
